@@ -1,0 +1,61 @@
+syntax = "proto3";
+
+message RoomUser {
+	string name = 1;
+	int32 seat = 2;
+	string avatar = 3;
+	int32 score = 4;
+}
+
+message RoomInfo {
+	string name = 1;
+	int32 counts = 2;
+	string avatar = 3;
+	bool gameBegin = 4;
+}
+
+message Protocol {
+    string key = 1; // 用户唯一标识
+    enum ProtocolType {
+        LOGIN = 0;
+        CREATE_ROOM = 1;
+        JOIN_ROOM = 2;
+        LEAVE_ROOM = 3;
+        CHAT = 4;
+        GAME_BEGIN = 5;
+        GAME_END = 6;
+        PAINT = 7;
+		ENTERED_ROOM = 8;
+		LEAVED_ROOM = 9;
+		OFFLINE = 10;
+		ONLINE = 11;
+		READY = 12;
+		UPDATE_USER = 13; // 更新用户分数
+		COUNTDOWN = 14; // 游戏倒计时
+		GAME_FINISHED = 15; // 一轮游戏结束
+		ROOM_LIST = 16;
+    }
+    ProtocolType type = 2; // 哪种消息
+	bool broadcast = 3; // 是否是广播
+
+    string name = 4;	// 用户名
+	string avatar = 5;	// 头像
+	int32 seat = 6;		// 座位号
+
+    string room_key = 7;	// 房间唯一标识
+	string room_name = 8; // 房间名称
+
+    string message = 9;		// 聊天内容
+
+    double begin_point = 10;		// 游戏开始后，起笔的坐标
+    double end_point = 11;		//游戏开始后，落笔的坐标
+    int32 pen_size = 12;		// 游戏开始后，笔的尺寸
+    int32 color = 13;		// 游戏开始后，线条的颜色
+	
+	repeated RoomUser users = 14; // 房间里用户信息
+	repeated RoomInfo rooms = 15; // 大厅里房间信息
+	// 服务端返回信息
+	int32 code =  16;		
+	string error = 17;
+	int32 id = 18;
+}
