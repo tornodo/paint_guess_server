@@ -7,30 +7,30 @@ namespace guess_server.user
 {
     public class ChatRoom
     {
-        private readonly object beginLock = new object();
+        private readonly object _beginLock = new object();
         private ILogger logger;
         // 房间最大容量
         public const int RoomCapacity = 8;
         // 房间key
-        public string key { get; }
+        public string Key { get; }
         // 房间名称
         public string Name { set; get; }
         public string Avatar { set; get; }
         // 游戏开始标记
-        public bool GameBegin {
-            set
+        private bool _gameBegin;
+
+        public void SetGameBegin(bool value)
+        {
+            lock(_beginLock)
             {
-                lock(beginLock)
-                {
-                    this.GameBegin = value;
-                }
+                this._gameBegin = value;
             }
-            get
+        }
+        public bool GetGameBegin() 
+        {
+            lock(_beginLock)
             {
-                lock(beginLock)
-                {
-                    return this.GameBegin;
-                }
+                return this._gameBegin;
             }
         }
         // 问题（答案）
@@ -52,7 +52,7 @@ namespace guess_server.user
         public ChatRoom(string key)
         {
             logger = Log.CeateLogger(Log.DefaultLogger);
-            this.key = key;
+            this.Key = key;
             Users = new ConcurrentDictionary<string, User>();
         }
 
@@ -79,10 +79,11 @@ namespace guess_server.user
                     info.Avatar = user.Value.Avatar;
                     info.Name = user.Value.Name;
                     info.Seat = user.Value.Seat;
-                    info.Score = user.Value.score;
+                    info.Score = user.Value.Score;
                     userInfos[userInfos.Length - 1] = info;
                 }
             }
+            enumerator.Dispose();
             return userInfos;
         }
 
@@ -98,6 +99,7 @@ namespace guess_server.user
                     counts++;
                 }
             }
+            enumerator.Dispose();
             return counts;
         }
 
@@ -120,7 +122,7 @@ namespace guess_server.user
             {
                 return false;
             }
-            user.InRoom = true;
+            user.SetInRoom(true);
             return Users.TryAdd(user.Key, user);
         }
 
@@ -148,7 +150,7 @@ namespace guess_server.user
             }
             if (user != null)
             {
-                user.InRoom = false;
+                user.SetInRoom(false);
             }
             return user;
         }

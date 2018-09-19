@@ -4,8 +4,8 @@ namespace guess_server.user
 {
     public class User
     {
-        private readonly object offlineLock = new object();
-        private readonly object inRoomLock = new object();
+        private readonly object _offlineLock = new object();
+        private readonly object _inRoomLock = new object();
         public User(string key, string name, WebSocket socket): this(key, name, socket, -1)
         {
         }
@@ -15,46 +15,48 @@ namespace guess_server.user
             this.Name = name;
             this.Socket = socket;
             this.Seat = seat;
-            //this.Offline = false;
+            this._offline = false;
+            this._inRoom = false;
         }
         public string Key { get; }
         public string Name { get; }
         public int Seat { set; get; }
         public string Avatar { set; get; }
         public WebSocket Socket { set; get;}
-        public bool Offline {
-            set
-            {
-                lock(offlineLock)
-                {
-                    Offline = value;
-                }
-            }
-            get
-            {
-                lock(offlineLock)
-                {
-                    return Offline;
-                }
-            }
-        }
-        public bool InRoom
+        
+        private bool _offline;
+        public void SetOffline(bool value)
         {
-            set
+            lock(_offlineLock)
             {
-                lock(inRoomLock)
-                {
-                    InRoom = value;
-                }
-            }
-            get
-            {
-                lock(inRoomLock)
-                {
-                    return InRoom;
-                }
+                _offline = value;
             }
         }
-        public int score { set; get; }
+        public bool GetOffline()
+        {
+            lock(_offlineLock)
+            {
+                return _offline;
+            }
+        }
+
+        private bool _inRoom;
+
+        public void SetInRoom(bool value)
+        {
+            lock(_inRoomLock)
+            {
+                _inRoom = value;
+            }
+        }
+        public bool GetInRoom()
+        {
+            lock(_inRoomLock)
+            {
+                return _inRoom;
+            }
+        }
+        
+        public int Score { set; get; }
     }
 }

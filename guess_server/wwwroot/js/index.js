@@ -1,4 +1,4 @@
-var wsUri ="ws://localhost:9255/room?key=aaa";
+var wsUri ="ws://localhost:5000/room?key=aaa";
 
 websocket = new WebSocket(wsUri);
 
@@ -30,12 +30,14 @@ function onOpen(evt) {
 }
 
 function onClose(evt) {
+    showLog(evt);
     showLog("DISCONNECTED");
 }
 
 function onMessage(evt) {
+    showLog(evt);
     var data = proto.Protocol.deserializeBinary(evt.data);
-    console.log(data);
+    showLog(data);
 }
 
 function onError(evt) {

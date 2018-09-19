@@ -75,11 +75,19 @@ namespace guess_server.websocket
 
                     _userOffline(key);
                     // 断开连接
-                    await socket.CloseAsync(
-                        closeStatus: WebSocketCloseStatus.NormalClosure,
-                        statusDescription: "Closed",
-                        cancellationToken: CancellationToken.None
-                    ).ConfigureAwait(false);
+                    try
+                    {
+                        await socket.CloseAsync(
+                            closeStatus: WebSocketCloseStatus.NormalClosure,
+                            statusDescription: "Closed",
+                            cancellationToken: CancellationToken.None
+                        ).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex.Message, ex.StackTrace);
+                    }
+                    return;
                 }
             }
         }
@@ -181,12 +189,12 @@ namespace guess_server.websocket
             {
                 User user = _getUser(protocol.Key);
                 // 别把已经登陆正在玩游戏的用户挤掉线(同时登陆)
-                if (user.Offline)
+                if (user.GetOffline())
                 {
                     user.Socket = socket;
-                    user.Offline = false;
+                    user.SetOffline(false);
                     ChatRoom room = _getUserRoom(protocol.Key);
-                    if (room != null && room.GameBegin)
+                    if (room != null && room.GetGameBegin())
                     {
                         // 告诉客户端重新进入房间，继续游戏
                         Protocol pro = _newResponseProtocol(protocol.Key, true, protocol.Id);
@@ -235,10 +243,10 @@ namespace guess_server.websocket
             p.Message = content;
             if (room != null)
             {
-                if (room.GameBegin)
+                if (room.GetGameBegin())
                 {
                     // 游戏开始后，优先匹配答案
-                    if (p.Message.CompareTo(room.Question) == 0)
+                    if (String.Compare(p.Message, room.Question, StringComparison.Ordinal) == 0)
                     {
                         var score = 0;
                         var tips = protocol.Name + "回答正确";
@@ -246,7 +254,7 @@ namespace guess_server.websocket
                         {
                             tips += "，加两分";
                             score = 2;
-                            user.score += 2;
+                            user.Score += 2;
                             // 游戏结束倒计时
                             var ticks = DateTime.Now.Ticks;
                             // 修改倒计时为30秒(防止延迟造成倒计时已经小于30秒了又再次改成30秒的情况)
@@ -264,7 +272,7 @@ namespace guess_server.websocket
                         {
                             tips += "，加一分";
                             score = 1;
-                            user.score += 1;
+                            user.Score += 1;
                         }
                         p.Message = protocol.Name + "回答正确";
                         Users u = db.users.Find(protocol.Key);
@@ -319,7 +327,7 @@ namespace guess_server.websocket
             endPro.Broadcast = true;
             _broadcastRoomMessage(timerObject.room, BroadcastEmptyKey, endPro.ToByteArray());
 
-            timerObject.room.GameBegin = false;
+            timerObject.room.SetGameBegin(false);
             timerObject.timer.Dispose();
             timerObject.room.ResetRoom();
             
@@ -370,7 +378,7 @@ namespace guess_server.websocket
             if (room.IsEmpty())
             {
                 room.Users.Clear();
-                _removeRoom(room.key);
+                _removeRoom(room.Key);
                 room = null;
             }
 
@@ -386,7 +394,7 @@ namespace guess_server.websocket
         {
             var p = _newResponseProtocol(protocol.Key, true, protocol.Id);
             var room = _getUserRoom(protocol.Key);
-            if (room.key != protocol.RoomKey || protocol.Seat != room.CurrentPaintSeat 
+            if (room.Key != protocol.RoomKey || protocol.Seat != room.CurrentPaintSeat 
                 || protocol.Key != room.CurrentPaintUserKey)
             {
                 p.Code = CODE_ERROR;
@@ -404,7 +412,7 @@ namespace guess_server.websocket
                 return;
             }
 
-            room.GameBegin = true;
+            room.SetGameBegin(true);
             // 广播房间信息给大厅用户
             _broadcastRoomInfo(null);
 
@@ -453,7 +461,7 @@ namespace guess_server.websocket
         private static void _handlePaint(WebSocket socket, Protocol protocol)
         {
             var room = _getUserRoom(protocol.Key);
-            if (room.key != protocol.RoomKey || protocol.Seat != room.CurrentPaintSeat
+            if (room.Key != protocol.RoomKey || protocol.Seat != room.CurrentPaintSeat
                 || protocol.Key != room.CurrentPaintUserKey)
             {
                 var p = _newResponseProtocol(protocol.Key, true, protocol.Id);
@@ -463,7 +471,7 @@ namespace guess_server.websocket
                 logger.LogError("开始游戏, 数据有问题", protocol.ToString(), room.ToString());
                 return;
             }
-            if (!room.GameBegin)
+            if (!room.GetGameBegin())
             {
                 var p = _newResponseProtocol(protocol.Key, true, protocol.Id);
                 p.Code = CODE_ERROR;
@@ -561,7 +569,7 @@ namespace guess_server.websocket
             while (enumerator.MoveNext())
             {
                 var user = enumerator.Current;
-                if (user.Value == null || (userKey != BroadcastEmptyKey && user.Value.Key == userKey) || user.Value.Offline)
+                if (user.Value == null || (userKey != BroadcastEmptyKey && user.Value.Key == userKey) || user.Value.GetOffline())
                 {
                     continue;
                 }
@@ -578,6 +586,7 @@ namespace guess_server.websocket
                     }
                 }
             }
+            enumerator.Dispose();
         }
 
         // 给大厅用户广播房间信息
@@ -595,7 +604,7 @@ namespace guess_server.websocket
                 while (enumerator.MoveNext())
                 {
                     var value = enumerator.Current;
-                    if (value.Value != null && !value.Value.InRoom)
+                    if (value.Value != null && !value.Value.GetInRoom())
                     {
                         try
                         {
@@ -610,6 +619,7 @@ namespace guess_server.websocket
                         }
                     }
                 }
+                enumerator.Dispose();
             } else
             {
                 // 给单个在大厅的用户发送房间信息
@@ -632,7 +642,7 @@ namespace guess_server.websocket
             var room = _getUserRoom(key);
             if (room != null)
             {
-                if (!room.GameBegin)
+                if (!room.GetGameBegin())
                 {
                     // 如果游戏没有开始，清理用户信息
                     var user = room.RemoveUser(key);
@@ -642,7 +652,7 @@ namespace guess_server.websocket
                     if (room.IsEmpty())
                     {
                         room.Users.Clear();
-                        _removeRoom(room.key);
+                        _removeRoom(room.Key);
                         room = null;
                     }
                 }
@@ -652,7 +662,7 @@ namespace guess_server.websocket
                     var user = _getUser(key);
                     if (user != null)
                     {
-                        user.Offline = true;
+                        user.SetOffline(true);
                         // 通知房间的用户，有用户离线
                         Protocol pro = _newResponseProtocol(BroadcastEmptyKey, true, BroadcastEmptyId);
                         pro.Type = Protocol.Types.ProtocolType.Offline;
@@ -717,7 +727,7 @@ namespace guess_server.websocket
                 var info = new RoomInfo();
                 info.Avatar = room.Value.Avatar;
                 info.Counts = room.Value.Users.Count;
-                info.GameBegin = room.Value.GameBegin;
+                info.GameBegin = room.Value.GetGameBegin();
                 info.Name = room.Value.Name;
 
                 infos[i] = info;
